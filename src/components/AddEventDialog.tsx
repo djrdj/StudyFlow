@@ -24,7 +24,7 @@ const AddEventDialog = ({ onEventAdded }: AddEventDialogProps) => {
   const [description, setDescription] = useState("");
   const [date, setDate] = useState<Date>();
   const [type, setType] = useState<StudyEvent['type']>("exam");
-  const [subjectId, setSubjectId] = useState<string>("");
+  const [subjectId, setSubjectId] = useState<string>("none");
   const [notifyBefore, setNotifyBefore] = useState(60);
 
   const subjects = getStoredData().subjects;
@@ -38,7 +38,7 @@ const AddEventDialog = ({ onEventAdded }: AddEventDialogProps) => {
       description,
       date,
       type,
-      subjectId: subjectId || undefined,
+      subjectId: subjectId === "none" ? undefined : subjectId,
       notifyBefore,
       completed: false
     });
@@ -48,7 +48,7 @@ const AddEventDialog = ({ onEventAdded }: AddEventDialogProps) => {
     setDescription("");
     setDate(undefined);
     setType("exam");
-    setSubjectId("");
+    setSubjectId("none");
     setNotifyBefore(60);
     setOpen(false);
     onEventAdded();
@@ -136,7 +136,7 @@ const AddEventDialog = ({ onEventAdded }: AddEventDialogProps) => {
                 <SelectValue placeholder="Select subject" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">No subject</SelectItem>
+                <SelectItem value="none">No subject</SelectItem>
                 {subjects.map((subject) => (
                   <SelectItem key={subject.id} value={subject.id}>
                     {subject.name}
