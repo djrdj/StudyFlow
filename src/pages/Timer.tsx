@@ -5,26 +5,19 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Play, Pause, Square, Clock, Bell } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-interface Subject {
-  id: string;
-  name: string;
-}
+import { useTimer } from "@/hooks/useTimer";
+import { getStoredData, formatTimeDetailed } from "@/lib/storage";
+import { useSearchParams } from "react-router-dom";
 
 const Timer = () => {
   const { toast } = useToast();
-  const [subjects] = useState<Subject[]>([
-    { id: "1", name: "Mathematics" },
-    { id: "2", name: "Science" },
-    { id: "3", name: "English" },
-    { id: "4", name: "History" },
-  ]);
-
+  const [searchParams] = useSearchParams();
+  const timer = useTimer();
+  
+  const [subjects, setSubjects] = useState(() => getStoredData().subjects);
   const [selectedSubject, setSelectedSubject] = useState<string>("");
-  const [isRunning, setIsRunning] = useState(false);
-  const [time, setTime] = useState(0); // in seconds
   const [pomodoroInterval, setPomodoroInterval] = useState(25); // in minutes
-  const [lastPomodoroTime, setLastPomodoroTime] = useState(0);
+  const [lastPomodoroCheck, setLastPomodoroCheck] = useState(0);
 
   const pomodoroOptions = [
     { value: 5, label: "5 minutes" },
@@ -36,66 +29,35 @@ const Timer = () => {
     { value: 60, label: "60 minutes" },
   ];
 
+  // Set subject from URL params
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    
-    if (isRunning) {
-      interval = setInterval(() => {
-        setTime(prevTime => {
-          const newTime = prevTime + 1;
-          
-          // Check for Pomodoro interval
-          const minutesElapsed = Math.floor(newTime / 60);
-          const lastMinutesElapsed = Math.floor(lastPomodoroTime / 60);
-          
-          if (minutesElapsed % pomodoroInterval === 0 && minutesElapsed > lastMinutesElapsed) {
-            playPomodoroSound();
-            toast({
-              title: "Pomodoro Break! 🔔",
-              description: `You've studied for ${pomodoroInterval} minutes. Time for a break!`,
-            });
-            setLastPomodoroTime(newTime);
-          }
-          
-          return newTime;
+    const subjectParam = searchParams.get('subject');
+    if (subjectParam && !timer.subjectId) {
+      setSelectedSubject(subjectParam);
+    } else if (timer.subjectId) {
+      setSelectedSubject(timer.subjectId);
+    }
+  }, [searchParams, timer.subjectId]);
+
+  // Check for Pomodoro intervals
+  useEffect(() => {
+    if (timer.isRunning && timer.time > 0) {
+      const minutesElapsed = Math.floor(timer.time / 60);
+      const intervalsPassed = Math.floor(minutesElapsed / pomodoroInterval);
+      const lastIntervalsPassed = Math.floor(lastPomodoroCheck / 60 / pomodoroInterval);
+      
+      if (intervalsPassed > lastIntervalsPassed) {
+        timer.playPomodoroSound();
+        toast({
+          title: "Pomodoro Break! 🔔",
+          description: `You've studied for ${pomodoroInterval} minutes. Time for a break!`,
         });
-      }, 1000);
+        setLastPomodoroCheck(timer.time);
+      }
     }
+  }, [timer.time, timer.isRunning, pomodoroInterval, lastPomodoroCheck, toast, timer]);
 
-    return () => clearInterval(interval);
-  }, [isRunning, pomodoroInterval, lastPomodoroTime, toast]);
-
-  const playPomodoroSound = () => {
-    // Create a simple beep sound
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    oscillator.frequency.value = 800;
-    oscillator.type = 'sine';
-    
-    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-    
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.5);
-  };
-
-  const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    
-    if (hours > 0) {
-      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const startTimer = () => {
+  const handleStartTimer = () => {
     if (!selectedSubject) {
       toast({
         title: "Select a Subject",
@@ -104,39 +66,65 @@ const Timer = () => {
       });
       return;
     }
-    setIsRunning(true);
+    
+    timer.startTimer(selectedSubject);
+    setLastPomodoroCheck(0);
+    
+    const subjectName = subjects.find(s => s.id === selectedSubject)?.name;
     toast({
       title: "Timer Started! ⏰",
-      description: `Good luck studying ${subjects.find(s => s.id === selectedSubject)?.name}!`,
+      description: `Good luck studying ${subjectName}!`,
     });
   };
 
-  const pauseTimer = () => {
-    setIsRunning(false);
+  const handlePauseTimer = () => {
+    timer.pauseTimer();
     toast({
       title: "Timer Paused",
       description: "Take a moment, then resume when ready.",
     });
   };
 
-  const stopTimer = () => {
-    setIsRunning(false);
-    if (time > 0) {
+  const handleResumeTimer = () => {
+    timer.resumeTimer();
+    toast({
+      title: "Timer Resumed",
+      description: "Back to studying! You've got this!",
+    });
+  };
+
+  const handleStopTimer = () => {
+    if (timer.time > 0) {
       const subjectName = subjects.find(s => s.id === selectedSubject)?.name;
+      timer.stopTimer();
+      
+      // Refresh subjects to show updated total time
+      setSubjects(getStoredData().subjects);
+      
       toast({
         title: "Great Session! 🎉",
-        description: `You studied ${subjectName} for ${formatTime(time)}. Well done!`,
+        description: `You studied ${subjectName} for ${formatTimeDetailed(timer.time)}. Well done!`,
       });
+    } else {
+      timer.stopTimer();
     }
-    setTime(0);
-    setLastPomodoroTime(0);
+    setLastPomodoroCheck(0);
   };
 
   const nextPomodoroBreak = () => {
-    const minutesElapsed = Math.floor(time / 60);
+    const minutesElapsed = Math.floor(timer.time / 60);
     const nextBreakMinute = Math.ceil((minutesElapsed + 1) / pomodoroInterval) * pomodoroInterval;
     const minutesUntilBreak = nextBreakMinute - minutesElapsed;
     return minutesUntilBreak;
+  };
+
+  const formatSessionTime = () => {
+    if (timer.startTime) {
+      const start = timer.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const current = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return `${start} - ${current}`;
+    }
+    return '';
   };
 
   return (
@@ -152,13 +140,21 @@ const Timer = () => {
         <CardContent className="p-8">
           <div className="text-center space-y-6">
             <div className="text-6xl md:text-8xl font-mono font-bold text-primary animate-pulse-gentle">
-              {formatTime(time)}
+              {formatTimeDetailed(timer.time)}
             </div>
             
-            {isRunning && time > 0 && (
-              <div className="text-sm text-muted-foreground flex items-center justify-center space-x-2">
-                <Bell className="w-4 h-4" />
-                <span>Next break in {nextPomodoroBreak()} minutes</span>
+            {timer.isRunning && timer.time > 0 && (
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <div className="flex items-center justify-center space-x-2">
+                  <Bell className="w-4 h-4" />
+                  <span>Next break in {nextPomodoroBreak()} minutes</span>
+                </div>
+                {timer.startTime && (
+                  <div className="flex items-center justify-center space-x-2">
+                    <Clock className="w-4 h-4" />
+                    <span>Session: {formatSessionTime()}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -180,7 +176,11 @@ const Timer = () => {
               <label className="text-sm font-medium text-foreground mb-2 block">
                 Select Subject
               </label>
-              <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+              <Select 
+                value={selectedSubject} 
+                onValueChange={setSelectedSubject}
+                disabled={timer.isRunning}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Choose a subject to study" />
                 </SelectTrigger>
@@ -198,7 +198,11 @@ const Timer = () => {
               <label className="text-sm font-medium text-foreground mb-2 block">
                 Pomodoro Interval
               </label>
-              <Select value={pomodoroInterval.toString()} onValueChange={(value) => setPomodoroInterval(parseInt(value))}>
+              <Select 
+                value={pomodoroInterval.toString()} 
+                onValueChange={(value) => setPomodoroInterval(parseInt(value))}
+                disabled={timer.isRunning}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -224,18 +228,18 @@ const Timer = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {!isRunning ? (
+              {!timer.isRunning ? (
                 <Button 
-                  onClick={startTimer}
+                  onClick={timer.time > 0 ? handleResumeTimer : handleStartTimer}
                   className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-lg py-6"
                   size="lg"
                 >
                   <Play className="w-5 h-5 mr-2" />
-                  {time > 0 ? "Resume Timer" : "Start Timer"}
+                  {timer.time > 0 ? "Resume Timer" : "Start Timer"}
                 </Button>
               ) : (
                 <Button 
-                  onClick={pauseTimer}
+                  onClick={handlePauseTimer}
                   className="w-full bg-secondary hover:bg-secondary/90 text-secondary-foreground text-lg py-6"
                   size="lg"
                 >
@@ -244,9 +248,9 @@ const Timer = () => {
                 </Button>
               )}
               
-              {time > 0 && (
+              {timer.time > 0 && (
                 <Button 
-                  onClick={stopTimer}
+                  onClick={handleStopTimer}
                   variant="outline"
                   className="w-full border-destructive text-destructive hover:bg-destructive/10"
                   size="lg"
