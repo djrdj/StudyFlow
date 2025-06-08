@@ -1,4 +1,3 @@
-
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -50,8 +49,7 @@ const Statistics = () => {
     return {
       name: subject.name,
       value: time,
-      sessions: subjectSessions.length,
-      color: subject.color
+      sessions: subjectSessions.length
     };
   }).filter(item => item.value > 0);
 
@@ -318,7 +316,7 @@ const Statistics = () => {
         <CardContent>
           <div className="space-y-4">
             {subjectData.map((subject, index) => (
-              <div key={subject.name} className="flex items-center justify-between p-4 bg-studyflow-light-gray rounded-lg border border-studyflow-gray">
+              <div key={subject.name} className="flex items-center justify-between p-4 bg-studyflow-light-gray rounded-lg border border-studyflow-gray hover:shadow-sm transition-all">
                 <div className="flex items-center space-x-3">
                   <div 
                     className="w-4 h-4 rounded-full" 
