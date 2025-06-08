@@ -3,8 +3,9 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar as CalendarIcon, Plus, Clock, Bell, Trash2 } from "lucide-react";
+import { Calendar as CalendarIcon, Plus, Clock, Bell, Trash2, List, Grid } from "lucide-react";
 import AddEventDialog from "@/components/AddEventDialog";
+import CalendarGrid from "@/components/CalendarGrid";
 import { getEvents, deleteEvent, type Event } from "@/lib/eventStorage";
 import { format, isToday, isFuture, isPast } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -13,6 +14,8 @@ const Calendar = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const { toast } = useToast();
 
   const loadEvents = () => {
@@ -27,6 +30,7 @@ const Calendar = () => {
     loadEvents();
     setIsAddDialogOpen(false);
     setEditingEvent(null);
+    setSelectedDate(null);
   };
 
   const handleDeleteEvent = (eventId: string) => {
@@ -36,6 +40,15 @@ const Calendar = () => {
       title: "Event deleted",
       description: "The event has been successfully removed.",
     });
+  };
+
+  const handleDateClick = (date: Date) => {
+    setSelectedDate(date);
+    setIsAddDialogOpen(true);
+  };
+
+  const handleEventClick = (event: Event) => {
+    setEditingEvent(event);
   };
 
   const getEventStatus = (event: Event) => {
@@ -61,214 +74,246 @@ const Calendar = () => {
   const pastEvents = sortedEvents.filter(event => isPast(new Date(event.date)) && !isToday(new Date(event.date)));
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-fade-in">
+    <div className="max-w-7xl mx-auto space-y-6 animate-fade-in">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div className="space-y-2">
           <h1 className="text-3xl font-bold text-foreground">Calendar</h1>
           <p className="text-muted-foreground">Manage your study schedule and events</p>
         </div>
-        <Button 
-          onClick={() => setIsAddDialogOpen(true)}
-          className="bg-primary hover:bg-primary/90 text-primary-foreground"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Event
-        </Button>
+        <div className="flex items-center space-x-2">
+          <div className="flex items-center border rounded-lg p-1">
+            <Button
+              variant={viewMode === "grid" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("grid")}
+            >
+              <Grid className="w-4 h-4" />
+            </Button>
+            <Button
+              variant={viewMode === "list" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("list")}
+            >
+              <List className="w-4 h-4" />
+            </Button>
+          </div>
+          <Button 
+            onClick={() => setIsAddDialogOpen(true)}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Event
+          </Button>
+        </div>
       </div>
 
-      {/* Today's Events */}
-      {todayEvents.length > 0 && (
-        <Card className="bg-primary/5 border-primary/20">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2 text-primary">
-              <CalendarIcon className="w-5 h-5" />
-              <span>Today's Events</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {todayEvents.map((event) => (
-                <div key={event.id} className="flex items-center justify-between p-4 bg-card rounded-lg border">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3">
-                      <h3 className="font-semibold text-foreground">{event.title}</h3>
-                      <Badge className={getStatusColor(getEventStatus(event))}>
-                        Today
-                      </Badge>
-                      {event.subject !== "none" && (
-                        <Badge variant="outline">{event.subject}</Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center space-x-4 mt-2 text-sm text-muted-foreground">
-                      <div className="flex items-center space-x-1">
-                        <CalendarIcon className="w-4 h-4" />
-                        <span>{format(new Date(event.date), "PPP")}</span>
-                      </div>
-                      {event.time && (
-                        <div className="flex items-center space-x-1">
-                          <Clock className="w-4 h-4" />
-                          <span>{event.time}</span>
-                        </div>
-                      )}
-                      {event.reminder && (
-                        <div className="flex items-center space-x-1">
-                          <Bell className="w-4 h-4" />
-                          <span>{event.reminder}</span>
-                        </div>
-                      )}
-                    </div>
-                    {event.description && (
-                      <p className="text-sm text-muted-foreground mt-2">{event.description}</p>
-                    )}
-                  </div>
-                  <div className="flex space-x-2 ml-4">
-                    <Button
-                      onClick={() => setEditingEvent(event)}
-                      variant="outline"
-                      size="sm"
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      onClick={() => handleDeleteEvent(event.id)}
-                      variant="outline"
-                      size="sm"
-                      className="text-destructive border-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Calendar Grid View */}
+      {viewMode === "grid" && (
+        <CalendarGrid
+          events={events}
+          onDateClick={handleDateClick}
+          onEventClick={handleEventClick}
+        />
       )}
 
-      {/* Upcoming Events */}
-      {upcomingEvents.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <CalendarIcon className="w-5 h-5" />
-              <span>Upcoming Events</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {upcomingEvents.map((event) => (
-                <div key={event.id} className="flex items-center justify-between p-4 bg-card rounded-lg border">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3">
-                      <h3 className="font-semibold text-foreground">{event.title}</h3>
-                      <Badge className={getStatusColor(getEventStatus(event))}>
-                        Upcoming
-                      </Badge>
-                      {event.subject !== "none" && (
-                        <Badge variant="outline">{event.subject}</Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center space-x-4 mt-2 text-sm text-muted-foreground">
-                      <div className="flex items-center space-x-1">
-                        <CalendarIcon className="w-4 h-4" />
-                        <span>{format(new Date(event.date), "PPP")}</span>
+      {/* List View */}
+      {viewMode === "list" && (
+        <>
+          {/* Today's Events */}
+          {todayEvents.length > 0 && (
+            <Card className="bg-primary/5 border-primary/20">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2 text-primary">
+                  <CalendarIcon className="w-5 h-5" />
+                  <span>Today's Events</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {todayEvents.map((event) => (
+                    <div key={event.id} className="flex items-center justify-between p-4 bg-card rounded-lg border">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3">
+                          <h3 className="font-semibold text-foreground">{event.title}</h3>
+                          <Badge className={getStatusColor(getEventStatus(event))}>
+                            Today
+                          </Badge>
+                          {event.subject !== "none" && (
+                            <Badge variant="outline">{event.subject}</Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-4 mt-2 text-sm text-muted-foreground">
+                          <div className="flex items-center space-x-1">
+                            <CalendarIcon className="w-4 h-4" />
+                            <span>{format(new Date(event.date), "PPP")}</span>
+                          </div>
+                          {event.time && (
+                            <div className="flex items-center space-x-1">
+                              <Clock className="w-4 h-4" />
+                              <span>{event.time}</span>
+                            </div>
+                          )}
+                          {event.reminder && (
+                            <div className="flex items-center space-x-1">
+                              <Bell className="w-4 h-4" />
+                              <span>{event.reminder}</span>
+                            </div>
+                          )}
+                        </div>
+                        {event.description && (
+                          <p className="text-sm text-muted-foreground mt-2">{event.description}</p>
+                        )}
                       </div>
-                      {event.time && (
-                        <div className="flex items-center space-x-1">
-                          <Clock className="w-4 h-4" />
-                          <span>{event.time}</span>
-                        </div>
-                      )}
-                      {event.reminder && (
-                        <div className="flex items-center space-x-1">
-                          <Bell className="w-4 h-4" />
-                          <span>{event.reminder}</span>
-                        </div>
-                      )}
+                      <div className="flex space-x-2 ml-4">
+                        <Button
+                          onClick={() => setEditingEvent(event)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          onClick={() => handleDeleteEvent(event.id)}
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive border-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
-                    {event.description && (
-                      <p className="text-sm text-muted-foreground mt-2">{event.description}</p>
-                    )}
-                  </div>
-                  <div className="flex space-x-2 ml-4">
-                    <Button
-                      onClick={() => setEditingEvent(event)}
-                      variant="outline"
-                      size="sm"
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      onClick={() => handleDeleteEvent(event.id)}
-                      variant="outline"
-                      size="sm"
-                      className="text-destructive border-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              </CardContent>
+            </Card>
+          )}
 
-      {/* Past Events */}
-      {pastEvents.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <CalendarIcon className="w-5 h-5" />
-              <span>Past Events</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {pastEvents.map((event) => (
-                <div key={event.id} className="flex items-center justify-between p-4 bg-muted/30 rounded-lg border">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3">
-                      <h3 className="font-semibold text-muted-foreground">{event.title}</h3>
-                      <Badge className={getStatusColor(getEventStatus(event))}>
-                        Completed
-                      </Badge>
-                      {event.subject !== "none" && (
-                        <Badge variant="outline" className="opacity-60">{event.subject}</Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center space-x-4 mt-2 text-sm text-muted-foreground">
-                      <div className="flex items-center space-x-1">
-                        <CalendarIcon className="w-4 h-4" />
-                        <span>{format(new Date(event.date), "PPP")}</span>
-                      </div>
-                      {event.time && (
-                        <div className="flex items-center space-x-1">
-                          <Clock className="w-4 h-4" />
-                          <span>{event.time}</span>
+          {/* Upcoming Events */}
+          {upcomingEvents.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <CalendarIcon className="w-5 h-5" />
+                  <span>Upcoming Events</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {upcomingEvents.map((event) => (
+                    <div key={event.id} className="flex items-center justify-between p-4 bg-card rounded-lg border">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3">
+                          <h3 className="font-semibold text-foreground">{event.title}</h3>
+                          <Badge className={getStatusColor(getEventStatus(event))}>
+                            Upcoming
+                          </Badge>
+                          {event.subject !== "none" && (
+                            <Badge variant="outline">{event.subject}</Badge>
+                          )}
                         </div>
-                      )}
+                        <div className="flex items-center space-x-4 mt-2 text-sm text-muted-foreground">
+                          <div className="flex items-center space-x-1">
+                            <CalendarIcon className="w-4 h-4" />
+                            <span>{format(new Date(event.date), "PPP")}</span>
+                          </div>
+                          {event.time && (
+                            <div className="flex items-center space-x-1">
+                              <Clock className="w-4 h-4" />
+                              <span>{event.time}</span>
+                            </div>
+                          )}
+                          {event.reminder && (
+                            <div className="flex items-center space-x-1">
+                              <Bell className="w-4 h-4" />
+                              <span>{event.reminder}</span>
+                            </div>
+                          )}
+                        </div>
+                        {event.description && (
+                          <p className="text-sm text-muted-foreground mt-2">{event.description}</p>
+                        )}
+                      </div>
+                      <div className="flex space-x-2 ml-4">
+                        <Button
+                          onClick={() => setEditingEvent(event)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          onClick={() => handleDeleteEvent(event.id)}
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive border-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
-                    {event.description && (
-                      <p className="text-sm text-muted-foreground mt-2 opacity-70">{event.description}</p>
-                    )}
-                  </div>
-                  <div className="flex space-x-2 ml-4">
-                    <Button
-                      onClick={() => handleDeleteEvent(event.id)}
-                      variant="outline"
-                      size="sm"
-                      className="text-destructive border-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Past Events */}
+          {pastEvents.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <CalendarIcon className="w-5 h-5" />
+                  <span>Past Events</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {pastEvents.map((event) => (
+                    <div key={event.id} className="flex items-center justify-between p-4 bg-muted/30 rounded-lg border">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3">
+                          <h3 className="font-semibold text-muted-foreground">{event.title}</h3>
+                          <Badge className={getStatusColor(getEventStatus(event))}>
+                            Completed
+                          </Badge>
+                          {event.subject !== "none" && (
+                            <Badge variant="outline" className="opacity-60">{event.subject}</Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-4 mt-2 text-sm text-muted-foreground">
+                          <div className="flex items-center space-x-1">
+                            <CalendarIcon className="w-4 h-4" />
+                            <span>{format(new Date(event.date), "PPP")}</span>
+                          </div>
+                          {event.time && (
+                            <div className="flex items-center space-x-1">
+                              <Clock className="w-4 h-4" />
+                              <span>{event.time}</span>
+                            </div>
+                          )}
+                        </div>
+                        {event.description && (
+                          <p className="text-sm text-muted-foreground mt-2 opacity-70">{event.description}</p>
+                        )}
+                      </div>
+                      <div className="flex space-x-2 ml-4">
+                        <Button
+                          onClick={() => handleDeleteEvent(event.id)}
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive border-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
 
       {/* Empty State */}
@@ -295,10 +340,12 @@ const Calendar = () => {
           if (!open) {
             setIsAddDialogOpen(false);
             setEditingEvent(null);
+            setSelectedDate(null);
           }
         }}
         onEventAdded={handleEventAdded}
         editingEvent={editingEvent}
+        selectedDate={selectedDate}
       />
     </div>
   );

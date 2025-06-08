@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,12 +19,17 @@ interface AddEventDialogProps {
   onOpenChange: (open: boolean) => void;
   onEventAdded: () => void;
   editingEvent?: Event | null;
+  selectedDate?: Date | null;
 }
 
-const AddEventDialog = ({ open, onOpenChange, onEventAdded, editingEvent }: AddEventDialogProps) => {
+const AddEventDialog = ({ open, onOpenChange, onEventAdded, editingEvent, selectedDate }: AddEventDialogProps) => {
   const [title, setTitle] = useState(editingEvent?.title || "");
   const [description, setDescription] = useState(editingEvent?.description || "");
-  const [date, setDate] = useState<Date>(editingEvent?.date ? new Date(editingEvent.date) : undefined);
+  const [date, setDate] = useState<Date>(
+    editingEvent?.date 
+      ? new Date(editingEvent.date) 
+      : selectedDate || undefined
+  );
   const [time, setTime] = useState(editingEvent?.time || "09:00");
   const [subject, setSubject] = useState<string>(editingEvent?.subject || "none");
   const [reminder, setReminder] = useState(editingEvent?.reminder || "1 hour before");
@@ -33,6 +38,37 @@ const AddEventDialog = ({ open, onOpenChange, onEventAdded, editingEvent }: AddE
   const [customReminderUnit, setCustomReminderUnit] = useState<"minutes" | "hours" | "days">("minutes");
 
   const subjects = getStoredData().subjects;
+
+  // Update date when selectedDate changes
+  useEffect(() => {
+    if (selectedDate && !editingEvent) {
+      setDate(selectedDate);
+    }
+  }, [selectedDate, editingEvent]);
+
+  // Reset form when dialog opens/closes
+  useEffect(() => {
+    if (open) {
+      if (editingEvent) {
+        setTitle(editingEvent.title);
+        setDescription(editingEvent.description || "");
+        setDate(new Date(editingEvent.date));
+        setTime(editingEvent.time || "09:00");
+        setSubject(editingEvent.subject || "none");
+        setReminder(editingEvent.reminder || "1 hour before");
+      } else {
+        setTitle("");
+        setDescription("");
+        setDate(selectedDate || undefined);
+        setTime("09:00");
+        setSubject("none");
+        setReminder("1 hour before");
+      }
+      setCustomReminder(false);
+      setCustomReminderValue("");
+      setCustomReminderUnit("minutes");
+    }
+  }, [open, editingEvent, selectedDate]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
