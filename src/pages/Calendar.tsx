@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar as CalendarIcon, Bell, Clock, BookOpen, CheckCircle, Trash2 } from "lucide-react";
+import { Calendar as CalendarIcon, Bell, Clock, BookOpen, CheckCircle, Trash2, Edit } from "lucide-react";
 import { getStoredEvents, getUpcomingEvents, updateEvent, deleteEvent, StudyEvent } from "@/lib/eventStorage";
 import { getStoredData } from "@/lib/storage";
 import AddEventDialog from "@/components/AddEventDialog";
@@ -12,6 +12,7 @@ import { format } from "date-fns";
 const Calendar = () => {
   const [events, setEvents] = useState<StudyEvent[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<StudyEvent[]>([]);
+  const [editingEvent, setEditingEvent] = useState<StudyEvent | undefined>(undefined);
   const subjects = getStoredData().subjects;
 
   const loadEvents = () => {
@@ -33,6 +34,10 @@ const Calendar = () => {
     loadEvents();
   };
 
+  const handleEditEvent = (event: StudyEvent) => {
+    setEditingEvent(event);
+  };
+
   const getEventTypeColor = (type: StudyEvent['type']) => {
     switch (type) {
       case 'exam': return 'bg-red-500';
@@ -49,6 +54,18 @@ const Calendar = () => {
     return subject?.name;
   };
 
+  const formatReminderTime = (minutes: number) => {
+    if (minutes >= 1440) {
+      const days = Math.floor(minutes / 1440);
+      return `${days} day${days > 1 ? 's' : ''} before`;
+    } else if (minutes >= 60) {
+      const hours = Math.floor(minutes / 60);
+      return `${hours} hour${hours > 1 ? 's' : ''} before`;
+    } else {
+      return `${minutes} minute${minutes > 1 ? 's' : ''} before`;
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto space-y-8 animate-fade-in">
       {/* Header */}
@@ -61,6 +78,17 @@ const Calendar = () => {
       <div className="flex justify-center">
         <AddEventDialog onEventAdded={loadEvents} />
       </div>
+
+      {/* Edit Event Dialog */}
+      {editingEvent && (
+        <AddEventDialog 
+          onEventAdded={() => {
+            loadEvents();
+            setEditingEvent(undefined);
+          }} 
+          editEvent={editingEvent} 
+        />
+      )}
 
       {/* Upcoming Events */}
       <Card className="bg-card shadow-sm">
@@ -109,13 +137,19 @@ const Calendar = () => {
                         </span>
                         <span className="flex items-center">
                           <Bell className="w-4 h-4 mr-1" />
-                          {event.notifyBefore >= 1440 ? `${Math.floor(event.notifyBefore / 1440)} day(s)` : 
-                           event.notifyBefore >= 60 ? `${Math.floor(event.notifyBefore / 60)} hour(s)` : 
-                           `${event.notifyBefore} min`} before
+                          {formatReminderTime(event.notifyBefore)}
                         </span>
                       </div>
                     </div>
                     <div className="flex space-x-2">
+                      <Button
+                        onClick={() => handleEditEvent(event)}
+                        size="sm"
+                        variant="outline"
+                        className="border-blue-500 text-blue-500 hover:bg-blue-50"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
                       <Button
                         onClick={() => handleMarkComplete(event.id)}
                         size="sm"
@@ -176,10 +210,18 @@ const Calendar = () => {
                     </div>
                     <div className="flex items-center space-x-4">
                       <span className="text-sm text-muted-foreground">
-                        {format(event.date, "MMM dd, yyyy")}
+                        {format(event.date, "MMM dd, yyyy 'at' h:mm a")}
                       </span>
                       {!event.completed && (
                         <div className="flex space-x-2">
+                          <Button
+                            onClick={() => handleEditEvent(event)}
+                            size="sm"
+                            variant="outline"
+                            className="border-blue-500 text-blue-500 hover:bg-blue-50"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
                           <Button
                             onClick={() => handleMarkComplete(event.id)}
                             size="sm"

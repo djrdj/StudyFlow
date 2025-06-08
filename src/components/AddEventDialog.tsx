@@ -8,24 +8,29 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus } from "lucide-react";
+import { CalendarIcon, Plus, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { getStoredData } from "@/lib/storage";
-import { addEvent, StudyEvent } from "@/lib/eventStorage";
+import { addEvent, updateEvent, StudyEvent } from "@/lib/eventStorage";
 
 interface AddEventDialogProps {
   onEventAdded: () => void;
+  editEvent?: StudyEvent;
 }
 
-const AddEventDialog = ({ onEventAdded }: AddEventDialogProps) => {
+const AddEventDialog = ({ onEventAdded, editEvent }: AddEventDialogProps) => {
   const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [date, setDate] = useState<Date>();
-  const [type, setType] = useState<StudyEvent['type']>("exam");
-  const [subjectId, setSubjectId] = useState<string>("none");
-  const [notifyBefore, setNotifyBefore] = useState(60);
+  const [title, setTitle] = useState(editEvent?.title || "");
+  const [description, setDescription] = useState(editEvent?.description || "");
+  const [date, setDate] = useState<Date>(editEvent?.date || undefined);
+  const [time, setTime] = useState(editEvent?.date ? format(editEvent.date, "HH:mm") : "09:00");
+  const [type, setType] = useState<StudyEvent['type']>(editEvent?.type || "exam");
+  const [subjectId, setSubjectId] = useState<string>(editEvent?.subjectId || "none");
+  const [notifyBefore, setNotifyBefore] = useState(editEvent?.notifyBefore || 60);
+  const [customReminder, setCustomReminder] = useState(false);
+  const [customReminderValue, setCustomReminderValue] = useState("");
+  const [customReminderUnit, setCustomReminderUnit] = useState<"minutes" | "hours" | "days">("minutes");
 
   const subjects = getStoredData().subjects;
 
@@ -33,23 +38,54 @@ const AddEventDialog = ({ onEventAdded }: AddEventDialogProps) => {
     e.preventDefault();
     if (!title || !date) return;
 
-    addEvent({
+    // Combine date and time
+    const [hours, minutes] = time.split(':').map(Number);
+    const eventDateTime = new Date(date);
+    eventDateTime.setHours(hours, minutes, 0, 0);
+
+    // Calculate reminder time
+    let reminderMinutes = notifyBefore;
+    if (customReminder && customReminderValue) {
+      const value = parseInt(customReminderValue);
+      switch (customReminderUnit) {
+        case "hours":
+          reminderMinutes = value * 60;
+          break;
+        case "days":
+          reminderMinutes = value * 24 * 60;
+          break;
+        default:
+          reminderMinutes = value;
+      }
+    }
+
+    const eventData = {
       title,
       description,
-      date,
+      date: eventDateTime,
       type,
       subjectId: subjectId === "none" ? undefined : subjectId,
-      notifyBefore,
+      notifyBefore: reminderMinutes,
       completed: false
-    });
+    };
+
+    if (editEvent) {
+      updateEvent(editEvent.id, eventData);
+    } else {
+      addEvent(eventData);
+    }
 
     // Reset form
     setTitle("");
     setDescription("");
     setDate(undefined);
+    setTime("09:00");
     setType("exam");
     setSubjectId("none");
     setNotifyBefore(60);
+    setCustomReminder(false);
+    setCustomReminderValue("");
+    setCustomReminderUnit("minutes");
     setOpen(false);
     onEventAdded();
   };
@@ -59,12 +95,12 @@ const AddEventDialog = ({ onEventAdded }: AddEventDialogProps) => {
       <DialogTrigger asChild>
         <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
           <Plus className="w-4 h-4 mr-2" />
-          Add Event
+          {editEvent ? "Edit Event" : "Add Event"}
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add Study Event</DialogTitle>
+          <DialogTitle>{editEvent ? "Edit Study Event" : "Add Study Event"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
@@ -115,6 +151,20 @@ const AddEventDialog = ({ onEventAdded }: AddEventDialogProps) => {
           </div>
 
           <div className="space-y-2">
+            <Label htmlFor="time">Time</Label>
+            <div className="flex items-center space-x-2">
+              <Clock className="w-4 h-4 text-muted-foreground" />
+              <Input
+                id="time"
+                type="time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                className="flex-1"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
             <Label>Event Type</Label>
             <Select value={type} onValueChange={(value: StudyEvent['type']) => setType(value)}>
               <SelectTrigger>
@@ -147,23 +197,59 @@ const AddEventDialog = ({ onEventAdded }: AddEventDialogProps) => {
           </div>
 
           <div className="space-y-2">
-            <Label>Notify Before (minutes)</Label>
-            <Select value={notifyBefore.toString()} onValueChange={(value) => setNotifyBefore(Number(value))}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="15">15 minutes</SelectItem>
-                <SelectItem value="30">30 minutes</SelectItem>
-                <SelectItem value="60">1 hour</SelectItem>
-                <SelectItem value="1440">1 day</SelectItem>
-                <SelectItem value="10080">1 week</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label>Remind Me</Label>
+            <div className="space-y-3">
+              <Select 
+                value={customReminder ? "custom" : notifyBefore.toString()} 
+                onValueChange={(value) => {
+                  if (value === "custom") {
+                    setCustomReminder(true);
+                  } else {
+                    setCustomReminder(false);
+                    setNotifyBefore(Number(value));
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="15">15 minutes before</SelectItem>
+                  <SelectItem value="30">30 minutes before</SelectItem>
+                  <SelectItem value="60">1 hour before</SelectItem>
+                  <SelectItem value="1440">1 day before</SelectItem>
+                  <SelectItem value="10080">1 week before</SelectItem>
+                  <SelectItem value="custom">Custom time</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {customReminder && (
+                <div className="flex space-x-2">
+                  <Input
+                    type="number"
+                    min="1"
+                    placeholder="Enter value"
+                    value={customReminderValue}
+                    onChange={(e) => setCustomReminderValue(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Select value={customReminderUnit} onValueChange={(value: "minutes" | "hours" | "days") => setCustomReminderUnit(value)}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="minutes">Minutes</SelectItem>
+                      <SelectItem value="hours">Hours</SelectItem>
+                      <SelectItem value="days">Days</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
           </div>
 
           <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
-            Add Event
+            {editEvent ? "Update Event" : "Add Event"}
           </Button>
         </form>
       </DialogContent>
