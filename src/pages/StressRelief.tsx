@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -191,6 +190,77 @@ const StressRelief = () => {
         <p className="text-lg text-muted-foreground">Take a moment to breathe and find your center</p>
       </div>
 
+      {/* Ambient Sounds */}
+      <Card className="bg-card shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Volume2 className="w-5 h-5 text-secondary-foreground" />
+              <span>Ambient Sounds</span>
+            </div>
+            <Button
+              onClick={toggleMute}
+              variant="outline"
+              size="sm"
+              className="border-muted-foreground/20"
+            >
+              {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {ambientSounds.map((sound, index) => (
+              <Card key={index} className="bg-studyflow-light-gray border-studyflow-gray">
+                <CardContent className="p-4 text-center">
+                  <h3 className="font-medium text-foreground mb-2">{sound.name}</h3>
+                  <p className="text-sm text-muted-foreground mb-4">{sound.description}</p>
+                  {selectedSound === sound.url ? (
+                    <Button 
+                      onClick={stopAmbientSound}
+                      variant="outline"
+                      className="w-full border-destructive text-destructive hover:bg-destructive/10"
+                    >
+                      <Pause className="w-4 h-4 mr-2" />
+                      Stop
+                    </Button>
+                  ) : (
+                    <Button 
+                      onClick={() => playAmbientSound(sound.url)}
+                      className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                    >
+                      <Play className="w-4 h-4 mr-2" />
+                      Play
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <div className="mt-6 text-center">
+            <p className="text-sm text-muted-foreground">
+              Note: Some browsers may require user interaction before playing audio. Click play to start ambient sounds.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Motivational Quote */}
+      <Card className="bg-gradient-to-r from-primary/10 to-secondary/10 border-primary/20">
+        <CardContent className="p-8 text-center">
+          <div className="space-y-4">
+            <p className="text-xl font-medium text-foreground italic">"{currentQuote}"</p>
+            <Button 
+              onClick={refreshQuote}
+              variant="outline"
+              className="border-primary text-primary hover:bg-primary/10"
+            >
+              New Quote
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Breathing Exercise */}
       <Card className="bg-card shadow-lg border-primary/20">
         <CardHeader>
@@ -253,77 +323,6 @@ const StressRelief = () => {
                 Reset
               </Button>
             </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Motivational Quote */}
-      <Card className="bg-gradient-to-r from-primary/10 to-secondary/10 border-primary/20">
-        <CardContent className="p-8 text-center">
-          <div className="space-y-4">
-            <p className="text-xl font-medium text-foreground italic">"{currentQuote}"</p>
-            <Button 
-              onClick={refreshQuote}
-              variant="outline"
-              className="border-primary text-primary hover:bg-primary/10"
-            >
-              New Quote
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Ambient Sounds */}
-      <Card className="bg-card shadow-sm">
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Volume2 className="w-5 h-5 text-secondary-foreground" />
-              <span>Ambient Sounds</span>
-            </div>
-            <Button
-              onClick={toggleMute}
-              variant="outline"
-              size="sm"
-              className="border-muted-foreground/20"
-            >
-              {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {ambientSounds.map((sound, index) => (
-              <Card key={index} className="bg-studyflow-light-gray border-studyflow-gray">
-                <CardContent className="p-4 text-center">
-                  <h3 className="font-medium text-foreground mb-2">{sound.name}</h3>
-                  <p className="text-sm text-muted-foreground mb-4">{sound.description}</p>
-                  {selectedSound === sound.url ? (
-                    <Button 
-                      onClick={stopAmbientSound}
-                      variant="outline"
-                      className="w-full border-destructive text-destructive hover:bg-destructive/10"
-                    >
-                      <Pause className="w-4 h-4 mr-2" />
-                      Stop
-                    </Button>
-                  ) : (
-                    <Button 
-                      onClick={() => playAmbientSound(sound.url)}
-                      className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-                    >
-                      <Play className="w-4 h-4 mr-2" />
-                      Play
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-          <div className="mt-6 text-center">
-            <p className="text-sm text-muted-foreground">
-              Note: Some browsers may require user interaction before playing audio. Click play to start ambient sounds.
-            </p>
           </div>
         </CardContent>
       </Card>
