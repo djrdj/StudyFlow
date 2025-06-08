@@ -1,44 +1,128 @@
 
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart3, PieChart, TrendingUp, Clock } from "lucide-react";
-import { getStoredData, getTodaySessions, formatTime } from "@/lib/storage";
-import { useState, useEffect } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
+import { Calendar, Clock, TrendingUp, BookOpen, Target } from "lucide-react";
+import { getStoredData, formatTime } from "@/lib/storage";
+
+type TimeFrame = 'daily' | 'weekly' | 'monthly';
+
+const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#8dd1e1', '#d084d0'];
 
 const Statistics = () => {
-  const [data, setData] = useState(() => getStoredData());
-  const [todaySessions, setTodaySessions] = useState(() => getTodaySessions());
+  const [timeFrame, setTimeFrame] = useState<TimeFrame>('weekly');
+  const data = getStoredData();
 
-  const weekSessions = data.sessions.filter(session => {
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    return session.startTime >= weekAgo;
-  });
+  // Filter sessions based on timeframe
+  const getFilteredSessions = () => {
+    const now = new Date();
+    let startDate = new Date();
 
-  const totalWeekTime = weekSessions.reduce((sum, session) => sum + session.duration, 0);
-  const totalTodayTime = todaySessions.reduce((sum, session) => sum + session.duration, 0);
-  
-  const subjectStats = data.subjects.map(subject => {
-    const subjectSessions = data.sessions.filter(s => s.subjectId === subject.id);
-    const weekSessions = subjectSessions.filter(s => {
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      return s.startTime >= weekAgo;
-    });
-    const weekTime = weekSessions.reduce((sum, s) => sum + s.duration, 0);
-    
+    switch (timeFrame) {
+      case 'daily':
+        startDate.setHours(0, 0, 0, 0);
+        break;
+      case 'weekly':
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case 'monthly':
+        startDate.setMonth(now.getMonth() - 1);
+        break;
+    }
+
+    return data.sessions.filter(session => session.startTime >= startDate);
+  };
+
+  const filteredSessions = getFilteredSessions();
+
+  // Calculate statistics
+  const totalStudyTime = filteredSessions.reduce((sum, session) => sum + session.duration, 0);
+  const averageSessionLength = filteredSessions.length > 0 
+    ? Math.round(totalStudyTime / filteredSessions.length) 
+    : 0;
+
+  // Subject breakdown for pie chart
+  const subjectData = data.subjects.map(subject => {
+    const subjectSessions = filteredSessions.filter(s => s.subjectId === subject.id);
+    const time = subjectSessions.reduce((sum, session) => sum + session.duration, 0);
     return {
-      ...subject,
-      sessionCount: subjectSessions.length,
-      weekTime
+      name: subject.name,
+      value: time,
+      sessions: subjectSessions.length,
+      color: subject.color
     };
-  }).sort((a, b) => b.totalTime - a.totalTime);
+  }).filter(item => item.value > 0);
+
+  // Daily breakdown for line chart
+  const dailyData = useMemo(() => {
+    const days = [];
+    const now = new Date();
+    
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(now.getDate() - i);
+      date.setHours(0, 0, 0, 0);
+      
+      const dayEnd = new Date(date);
+      dayEnd.setHours(23, 59, 59, 999);
+      
+      const daySessions = filteredSessions.filter(session => 
+        session.startTime >= date && session.startTime <= dayEnd
+      );
+      
+      const totalTime = daySessions.reduce((sum, session) => sum + session.duration, 0);
+      
+      days.push({
+        date: date.toLocaleDateString('en-US', { weekday: 'short' }),
+        time: Math.round(totalTime / 60), // Convert to minutes
+        sessions: daySessions.length
+      });
+    }
+    
+    return days;
+  }, [filteredSessions]);
+
+  // Weekly breakdown for bar chart
+  const weeklyData = data.subjects.map(subject => {
+    const subjectSessions = filteredSessions.filter(s => s.subjectId === subject.id);
+    const time = subjectSessions.reduce((sum, session) => sum + session.duration, 0);
+    return {
+      subject: subject.name,
+      time: Math.round(time / 60), // Convert to minutes
+      sessions: subjectSessions.length
+    };
+  }).filter(item => item.time > 0);
+
+  const getTimeFrameLabel = () => {
+    switch (timeFrame) {
+      case 'daily': return 'Today';
+      case 'weekly': return 'Last 7 Days';
+      case 'monthly': return 'Last 30 Days';
+    }
+  };
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 animate-fade-in">
       {/* Header */}
       <div className="text-center space-y-4">
         <h1 className="text-4xl font-bold text-foreground">Study Statistics</h1>
-        <p className="text-lg text-muted-foreground">Track your progress and see how far you've come</p>
+        <p className="text-lg text-muted-foreground">Track your progress and identify patterns</p>
+      </div>
+
+      {/* Time Frame Filter */}
+      <div className="flex justify-center">
+        <Select value={timeFrame} onValueChange={(value: TimeFrame) => setTimeFrame(value)}>
+          <SelectTrigger className="w-48">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="daily">Today</SelectItem>
+            <SelectItem value="weekly">Last 7 Days</SelectItem>
+            <SelectItem value="monthly">Last 30 Days</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Overview Cards */}
@@ -47,103 +131,215 @@ const Statistics = () => {
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center space-x-2 text-primary">
               <Clock className="w-5 h-5" />
-              <span>Today</span>
+              <span>Total Time</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-foreground">{formatTime(totalTodayTime)}</p>
-            <p className="text-sm text-muted-foreground">{todaySessions.length} sessions</p>
+            <p className="text-2xl font-bold text-foreground">{formatTime(totalStudyTime)}</p>
+            <p className="text-sm text-muted-foreground">{getTimeFrameLabel()}</p>
           </CardContent>
         </Card>
 
         <Card className="bg-card border-secondary/20 shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center space-x-2 text-secondary-foreground">
-              <TrendingUp className="w-5 h-5" />
-              <span>This Week</span>
+              <Target className="w-5 h-5" />
+              <span>Sessions</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-foreground">{formatTime(totalWeekTime)}</p>
-            <p className="text-sm text-muted-foreground">{weekSessions.length} sessions</p>
+            <p className="text-2xl font-bold text-foreground">{filteredSessions.length}</p>
+            <p className="text-sm text-muted-foreground">Study sessions</p>
           </CardContent>
         </Card>
 
         <Card className="bg-card border-accent/20 shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center space-x-2 text-accent-foreground">
-              <BarChart3 className="w-5 h-5" />
-              <span>Total Sessions</span>
+              <TrendingUp className="w-5 h-5" />
+              <span>Average</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-foreground">{data.sessions.length}</p>
-            <p className="text-sm text-muted-foreground">All time</p>
+            <p className="text-2xl font-bold text-foreground">{formatTime(averageSessionLength)}</p>
+            <p className="text-sm text-muted-foreground">Per session</p>
           </CardContent>
         </Card>
 
         <Card className="bg-card border-primary/20 shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center space-x-2 text-primary">
-              <PieChart className="w-5 h-5" />
-              <span>Avg Session</span>
+              <BookOpen className="w-5 h-5" />
+              <span>Subjects</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-foreground">
-              {data.sessions.length > 0 
-                ? formatTime(Math.round(data.sessions.reduce((sum, s) => sum + s.duration, 0) / data.sessions.length))
-                : "0m"
-              }
-            </p>
-            <p className="text-sm text-muted-foreground">Duration</p>
+            <p className="text-2xl font-bold text-foreground">{subjectData.length}</p>
+            <p className="text-sm text-muted-foreground">Active subjects</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Subject Breakdown */}
+      {/* Charts Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Daily Trend */}
+        <Card className="bg-card shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Calendar className="w-5 h-5 text-primary" />
+              <span>Daily Study Trend</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={dailyData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis 
+                    dataKey="date" 
+                    stroke="#64748b"
+                    fontSize={12}
+                  />
+                  <YAxis 
+                    stroke="#64748b"
+                    fontSize={12}
+                    label={{ value: 'Minutes', angle: -90, position: 'insideLeft' }}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: '#fff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px'
+                    }}
+                    formatter={(value: number) => [`${value} min`, 'Study Time']}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="time" 
+                    stroke="#8b5cf6" 
+                    strokeWidth={3}
+                    dot={{ fill: '#8b5cf6', strokeWidth: 2, r: 4 }}
+                    activeDot={{ r: 6, stroke: '#8b5cf6', strokeWidth: 2 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Subject Distribution Pie Chart */}
+        <Card className="bg-card shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <BookOpen className="w-5 h-5 text-secondary-foreground" />
+              <span>Subject Distribution</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={subjectData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {subjectData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: '#fff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px'
+                    }}
+                    formatter={(value: number) => [formatTime(value), 'Study Time']}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Subject Breakdown Bar Chart */}
       <Card className="bg-card shadow-sm">
         <CardHeader>
-          <CardTitle className="text-xl font-semibold">Subject Breakdown</CardTitle>
+          <CardTitle className="flex items-center space-x-2">
+            <BarChart className="w-5 h-5 text-accent-foreground" />
+            <span>Study Time by Subject ({getTimeFrameLabel()})</span>
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {subjectStats.map((subject) => (
-              <div key={subject.id} className="p-4 bg-studyflow-light-gray rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-medium text-foreground">{subject.name}</h3>
-                  <span className="text-sm font-medium text-primary">{formatTime(subject.totalTime)}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm text-muted-foreground">
-                  <span>This week: {formatTime(subject.weekTime)}</span>
-                  <span>{subject.sessionCount} sessions total</span>
-                </div>
-                <div className="mt-2 w-full bg-studyflow-gray rounded-full h-2">
-                  <div 
-                    className="bg-primary h-2 rounded-full transition-all duration-300" 
-                    style={{ 
-                      width: `${Math.max(5, (subject.totalTime / Math.max(...subjectStats.map(s => s.totalTime))) * 100)}%` 
-                    }}
-                  ></div>
-                </div>
-              </div>
-            ))}
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={weeklyData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis 
+                  dataKey="subject" 
+                  stroke="#64748b"
+                  fontSize={12}
+                />
+                <YAxis 
+                  stroke="#64748b"
+                  fontSize={12}
+                  label={{ value: 'Minutes', angle: -90, position: 'insideLeft' }}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#fff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px'
+                  }}
+                  formatter={(value: number) => [`${value} min`, 'Study Time']}
+                />
+                <Bar 
+                  dataKey="time" 
+                  fill="#3b82f6"
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </CardContent>
       </Card>
 
-      {/* Coming Soon Notice */}
-      <Card className="bg-gradient-to-r from-primary/10 to-secondary/10 border-primary/20">
-        <CardContent className="p-8 text-center">
+      {/* Subject Details */}
+      <Card className="bg-card shadow-sm">
+        <CardHeader>
+          <CardTitle>Subject Breakdown ({getTimeFrameLabel()})</CardTitle>
+        </CardHeader>
+        <CardContent>
           <div className="space-y-4">
-            <div className="flex justify-center space-x-4">
-              <BarChart3 className="w-12 h-12 text-primary" />
-              <PieChart className="w-12 h-12 text-secondary-foreground" />
-            </div>
-            <h2 className="text-2xl font-semibold text-foreground">Beautiful Charts Coming Soon!</h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              We're working on amazing visualizations including interactive charts, progress graphs, and detailed analytics.
-            </p>
+            {subjectData.map((subject, index) => (
+              <div key={subject.name} className="flex items-center justify-between p-4 bg-studyflow-light-gray rounded-lg border border-studyflow-gray">
+                <div className="flex items-center space-x-3">
+                  <div 
+                    className="w-4 h-4 rounded-full" 
+                    style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                  />
+                  <span className="font-medium text-foreground">{subject.name}</span>
+                </div>
+                <div className="flex items-center space-x-4">
+                  <Badge variant="outline" className="bg-background">
+                    {subject.sessions} sessions
+                  </Badge>
+                  <span className="font-semibold text-primary">{formatTime(subject.value)}</span>
+                </div>
+              </div>
+            ))}
+            {subjectData.length === 0 && (
+              <div className="text-center py-8">
+                <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">No study sessions in this time period</p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
