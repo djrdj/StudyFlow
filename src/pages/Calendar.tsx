@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calendar as CalendarIcon, Plus, Clock, Bell, Trash2 } from "lucide-react";
-import { AddEventDialog } from "@/components/AddEventDialog";
+import AddEventDialog from "@/components/AddEventDialog";
 import { getEvents, deleteEvent, type Event } from "@/lib/eventStorage";
 import { format, isToday, isFuture, isPast } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
