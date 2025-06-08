@@ -4,13 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Clock, Play, BookOpen, Calendar } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
-interface Subject {
-  id: string;
-  name: string;
-  todayTime: number; // in minutes
-  totalTime: number; // in minutes
-}
+import { getStoredData, getTodaySessions, formatTime } from "@/lib/storage";
 
 const motivationalQuotes = [
   "Every expert was once a beginner. Keep going! 🌟",
@@ -22,28 +16,21 @@ const motivationalQuotes = [
 
 const Index = () => {
   const navigate = useNavigate();
-  const [subjects, setSubjects] = useState<Subject[]>([
-    { id: "1", name: "Mathematics", todayTime: 45, totalTime: 1200 },
-    { id: "2", name: "Science", todayTime: 30, totalTime: 890 },
-    { id: "3", name: "English", todayTime: 0, totalTime: 650 },
-  ]);
   const [quote, setQuote] = useState("");
+  const [subjects, setSubjects] = useState(() => getStoredData().subjects);
+  const [todaySessions, setTodaySessions] = useState(() => getTodaySessions());
 
   useEffect(() => {
     const randomQuote = motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)];
     setQuote(randomQuote);
   }, []);
 
-  const totalTodayTime = subjects.reduce((sum, subject) => sum + subject.todayTime, 0);
-
-  const formatTime = (minutes: number) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    if (hours > 0) {
-      return `${hours}h ${mins}m`;
-    }
-    return `${mins}m`;
-  };
+  const totalTodayTime = todaySessions.reduce((sum, session) => sum + session.duration, 0);
+  const todayBySubject = subjects.map(subject => {
+    const subjectSessions = todaySessions.filter(s => s.subjectId === subject.id);
+    const todayTime = subjectSessions.reduce((sum, session) => sum + session.duration, 0);
+    return { ...subject, todayTime };
+  });
 
   const handleStartTimer = (subjectId: string) => {
     navigate(`/timer?subject=${subjectId}`);
@@ -109,7 +96,7 @@ const Index = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {subjects.map((subject) => (
+            {todayBySubject.map((subject) => (
               <div key={subject.id} className="flex items-center justify-between p-4 bg-studyflow-light-gray rounded-lg border border-studyflow-gray hover:shadow-sm transition-all">
                 <div className="flex-1">
                   <h3 className="font-medium text-foreground">{subject.name}</h3>
@@ -142,6 +129,33 @@ const Index = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Recent Sessions */}
+      {todaySessions.length > 0 && (
+        <Card className="bg-card shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-xl font-semibold">Recent Sessions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {todaySessions.slice(-3).reverse().map((session) => {
+                const subject = subjects.find(s => s.id === session.subjectId);
+                return (
+                  <div key={session.id} className="flex items-center justify-between p-3 bg-studyflow-light-gray rounded-lg">
+                    <div>
+                      <p className="font-medium text-foreground">{subject?.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {session.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {session.endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                    <span className="text-sm font-medium text-primary">{formatTime(session.duration)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

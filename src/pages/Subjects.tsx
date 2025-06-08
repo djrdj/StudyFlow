@@ -1,55 +1,36 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BookOpen, Plus, Trash2, Edit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-interface Subject {
-  id: string;
-  name: string;
-  totalTime: number; // in minutes
-}
+import { getStoredData, addSubject, updateSubject, deleteSubject, formatTime } from "@/lib/storage";
 
 const Subjects = () => {
   const { toast } = useToast();
-  const [subjects, setSubjects] = useState<Subject[]>([
-    { id: "1", name: "Mathematics", totalTime: 1200 },
-    { id: "2", name: "Science", totalTime: 890 },
-    { id: "3", name: "English", totalTime: 650 },
-    { id: "4", name: "History", totalTime: 420 },
-  ]);
+  const [subjects, setSubjects] = useState(() => getStoredData().subjects);
   const [newSubjectName, setNewSubjectName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
 
-  const formatTime = (minutes: number) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    if (hours > 0) {
-      return `${hours}h ${mins}m`;
-    }
-    return `${mins}m`;
+  const refreshSubjects = () => {
+    setSubjects(getStoredData().subjects);
   };
 
-  const addSubject = () => {
+  const handleAddSubject = () => {
     if (newSubjectName.trim()) {
-      const newSubject: Subject = {
-        id: Date.now().toString(),
-        name: newSubjectName.trim(),
-        totalTime: 0,
-      };
-      setSubjects([...subjects, newSubject]);
+      addSubject(newSubjectName);
       setNewSubjectName("");
+      refreshSubjects();
       toast({
         title: "Subject Added",
-        description: `${newSubject.name} has been added to your subjects.`,
+        description: `${newSubjectName.trim()} has been added to your subjects.`,
       });
     }
   };
 
-  const deleteSubject = (id: string, name: string, totalTime: number) => {
+  const handleDeleteSubject = (id: string, name: string, totalTime: number) => {
     if (totalTime > 0) {
       const confirmed = window.confirm(
         `⚠️ Warning: "${name}" has ${formatTime(totalTime)} of recorded study time. Deleting this subject will permanently remove all this data. Are you sure you want to continue?`
@@ -57,7 +38,8 @@ const Subjects = () => {
       if (!confirmed) return;
     }
 
-    setSubjects(subjects.filter(subject => subject.id !== id));
+    deleteSubject(id);
+    refreshSubjects();
     toast({
       title: "Subject Deleted",
       description: `${name} has been removed from your subjects.`,
@@ -72,11 +54,8 @@ const Subjects = () => {
 
   const saveEdit = () => {
     if (editingName.trim() && editingId) {
-      setSubjects(subjects.map(subject => 
-        subject.id === editingId 
-          ? { ...subject, name: editingName.trim() }
-          : subject
-      ));
+      updateSubject(editingId, { name: editingName.trim() });
+      refreshSubjects();
       setEditingId(null);
       setEditingName("");
       toast({
@@ -113,11 +92,11 @@ const Subjects = () => {
               placeholder="Enter subject name (e.g., Mathematics, Science)"
               value={newSubjectName}
               onChange={(e) => setNewSubjectName(e.target.value)}
-              onKeyPress={(e) => e.key === "Enter" && addSubject()}
+              onKeyPress={(e) => e.key === "Enter" && handleAddSubject()}
               className="flex-1"
             />
             <Button 
-              onClick={addSubject}
+              onClick={handleAddSubject}
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
               disabled={!newSubjectName.trim()}
             >
@@ -192,7 +171,7 @@ const Subjects = () => {
                         <Edit className="w-4 h-4" />
                       </Button>
                       <Button
-                        onClick={() => deleteSubject(subject.id, subject.name, subject.totalTime)}
+                        onClick={() => handleDeleteSubject(subject.id, subject.name, subject.totalTime)}
                         size="sm"
                         variant="outline"
                         className="border-destructive text-destructive hover:bg-destructive/10"

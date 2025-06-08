@@ -21,6 +21,31 @@ export interface AppData {
 
 const STORAGE_KEY = 'studyflow-data';
 
+// Mock data for demo
+const mockSessions: StudySession[] = [
+  {
+    id: "1",
+    subjectId: "1",
+    startTime: new Date(new Date().setHours(9, 30, 0, 0)),
+    endTime: new Date(new Date().setHours(10, 15, 0, 0)),
+    duration: 2700 // 45 minutes
+  },
+  {
+    id: "2", 
+    subjectId: "2",
+    startTime: new Date(new Date().setHours(14, 0, 0, 0)),
+    endTime: new Date(new Date().setHours(15, 30, 0, 0)),
+    duration: 5400 // 90 minutes
+  },
+  {
+    id: "3",
+    subjectId: "1", 
+    startTime: new Date(new Date().setHours(16, 45, 0, 0)),
+    endTime: new Date(new Date().setHours(17, 15, 0, 0)),
+    duration: 1800 // 30 minutes
+  }
+];
+
 export const getStoredData = (): AppData => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -44,7 +69,7 @@ export const getStoredData = (): AppData => {
       { id: "2", name: "Science", totalTime: 2700 }, // 45m in seconds
       { id: "3", name: "English", totalTime: 1800 }, // 30m in seconds
     ],
-    sessions: [],
+    sessions: mockSessions,
   };
 };
 
