@@ -17,17 +17,17 @@ const breathingQuotes = [
 const ambientSounds = [
   {
     name: "Rain & Thunder",
-    url: "https://www.soundjay.com/misc/sounds-1192.wav",
+    url: "https://www.soundjay.com/misc/rain-04.wav",
     description: "Gentle rain with distant thunder"
   },
   {
     name: "Ocean Waves", 
-    url: "https://www.soundjay.com/nature/sounds/ocean-1.wav",
+    url: "https://www.soundjay.com/misc/ocean-waves-1.wav",
     description: "Peaceful ocean waves"
   },
   {
     name: "Forest Birds",
-    url: "https://www.soundjay.com/nature/sounds/forest-1.wav", 
+    url: "https://www.soundjay.com/misc/birds-chirping-1.wav", 
     description: "Chirping birds in a quiet forest"
   }
 ];
@@ -116,20 +116,81 @@ const StressRelief = () => {
     setBreathingCycle(0);
   };
 
-  const playAmbientSound = (soundUrl: string) => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
-    
-    audioRef.current = new Audio(soundUrl);
-    audioRef.current.loop = true;
-    audioRef.current.volume = isMuted ? 0 : 0.3;
-    
-    audioRef.current.play().catch(error => {
+  const playAmbientSound = async (soundUrl: string) => {
+    try {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      
+      // Create new audio with better error handling
+      const audio = new Audio();
+      audio.crossOrigin = "anonymous";
+      audio.loop = true;
+      audio.volume = isMuted ? 0 : 0.3;
+      
+      // Handle load errors
+      audio.onerror = (error) => {
+        console.log("Audio load error:", error);
+        // Fallback to a simple tone generator if external audio fails
+        playFallbackSound();
+      };
+      
+      audio.onloadstart = () => {
+        console.log("Started loading audio:", soundUrl);
+      };
+      
+      audio.oncanplaythrough = () => {
+        console.log("Audio ready to play");
+      };
+      
+      audio.src = soundUrl;
+      audioRef.current = audio;
+      
+      await audio.play();
+      setSelectedSound(soundUrl);
+      console.log("Audio playing successfully");
+      
+    } catch (error) {
       console.log("Audio playback failed:", error);
-    });
-    
-    setSelectedSound(soundUrl);
+      // Fallback to a simple tone if external audio fails
+      playFallbackSound();
+    }
+  };
+
+  const playFallbackSound = () => {
+    // Create a simple white noise using Web Audio API as fallback
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const bufferSize = 4096;
+      const whiteNoise = audioContext.createScriptProcessor(bufferSize, 1, 1);
+      
+      whiteNoise.onaudioprocess = (e) => {
+        const output = e.outputBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          output[i] = Math.random() * 0.1 - 0.05; // Low volume white noise
+        }
+      };
+      
+      const gainNode = audioContext.createGain();
+      gainNode.gain.value = isMuted ? 0 : 0.1;
+      
+      whiteNoise.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      // Store reference for cleanup
+      (audioRef as any).current = { 
+        pause: () => {
+          whiteNoise.disconnect();
+          audioContext.close();
+        },
+        volume: gainNode.gain.value
+      };
+      
+      setSelectedSound("fallback");
+      console.log("Playing fallback white noise");
+    } catch (error) {
+      console.log("Fallback audio also failed:", error);
+    }
   };
 
   const stopAmbientSound = () => {
@@ -144,7 +205,11 @@ const StressRelief = () => {
     setIsMuted(prev => {
       const newMuted = !prev;
       if (audioRef.current) {
-        audioRef.current.volume = newMuted ? 0 : 0.3;
+        if ('volume' in audioRef.current) {
+          audioRef.current.volume = newMuted ? 0 : 0.3;
+        } else if ('gain' in audioRef.current) {
+          (audioRef.current as any).gain.value = newMuted ? 0 : 0.1;
+        }
       }
       return newMuted;
     });
@@ -215,7 +280,7 @@ const StressRelief = () => {
                 <CardContent className="p-4 text-center">
                   <h3 className="font-medium text-foreground mb-2">{sound.name}</h3>
                   <p className="text-sm text-muted-foreground mb-4">{sound.description}</p>
-                  {selectedSound === sound.url ? (
+                  {selectedSound === sound.url || (selectedSound === "fallback" && index === 0) ? (
                     <Button 
                       onClick={stopAmbientSound}
                       variant="outline"
@@ -239,7 +304,7 @@ const StressRelief = () => {
           </div>
           <div className="mt-6 text-center">
             <p className="text-sm text-muted-foreground">
-              Note: Some browsers may require user interaction before playing audio. Click play to start ambient sounds.
+              Note: If external audio fails to load, a gentle white noise will play as a fallback. Click play to start ambient sounds.
             </p>
           </div>
         </CardContent>
